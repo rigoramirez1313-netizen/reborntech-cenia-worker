@@ -1,0 +1,295 @@
+/**
+ * shared/layout.js
+ * Estructura base compartida del sitio: <head>, header con navegación,
+ * widget de chat, script de comportamientos y ensamblado de la página final.
+ */
+
+import { css, ICONS, CONFIG } from './styles.js';
+
+/** <head> con metadatos, título, Google Fonts y estilos compartidos */
+export function head(title, description) {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>${title}</title>
+<meta name="description" content="${description}" />
+<meta name="theme-color" content="#0B1E3D" />
+<meta property="og:title" content="${title}" />
+<meta property="og:description" content="${description}" />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="${CONFIG.logoUrl}" />
+<link rel="icon" type="image/png" href="${CONFIG.logoUrl}" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>${css()}</style>
+</head>
+`;
+}
+
+/** Header compartido: logo, navegación con anclas y CTA */
+export function header() {
+  return `<body>
+<a class="sr-only" href="#inicio">Saltar al contenido</a>
+<header class="site-header">
+  <div class="container nav">
+    <a href="#inicio" class="nav__brand" aria-label="${CONFIG.siteName} — Inicio">
+      <img src="${CONFIG.logoUrl}" alt="Logo del Centro Nacional de Inteligencia Artificial — Reborntech" />
+      <span>Reborntech</span>
+    </a>
+    <nav class="nav__links" id="nav-links" aria-label="Navegación principal">
+      <a href="#inicio">Inicio</a>
+      <a href="#quienes-somos">Quiénes somos</a>
+      <a href="#servicios">Servicios</a>
+      <a href="#sectores">Sectores</a>
+      <a href="#como-trabajamos">Cómo trabajamos</a>
+      <a href="#soluciones-locales">Sin internet</a>
+      <a href="#faq">Preguntas</a>
+      <a href="#contacto" class="btn btn--mint btn--sm nav__cta">Agenda tu asesoría</a>
+    </nav>
+    <button class="nav__toggle" id="nav-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="nav-links">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>`;
+}
+
+/** Widget de asistente conversacional (front-end, rule-based) */
+export function chatWidget() {
+  return `
+<!-- Widget de chat: respuestas automáticas basadas en preguntas frecuentes.
+     Estructura lista para conectar una IA real más adelante: reemplazar
+     la función responderChat() en layout.js por una llamada a una API. -->
+<button class="chat-fab" id="chat-fab" aria-label="Abrir asistente virtual Reborntech">
+  <span class="chat-fab__pulse"></span>
+  ${ICONS.chat}
+</button>
+<div class="chat-window" id="chat-window" role="dialog" aria-label="Asistente virtual Reborntech" aria-hidden="true">
+  <div class="chat-window__head">
+    ${ICONS.sparkle}
+    <div>
+      <strong>Asistente Reborntech</strong>
+      <span>Asistencia por IA · disponible 24/7</span>
+    </div>
+    <button class="chat-window__close" id="chat-close" aria-label="Cerrar asistente">×</button>
+  </div>
+  <div class="chat-window__body" id="chat-body"></div>
+  <div class="chat-window__quick">
+    <button data-quick="¿Necesito saber de tecnología?">¿Necesito saber de tecnología?</button>
+    <button data-quick="¿Atienden fuera de Colombia?">¿Atienden fuera de Colombia?</button>
+    <button data-quick="¿Cuánto cuesta empezar?">¿Cuánto cuesta empezar?</button>
+  </div>
+  <form class="chat-window__foot" id="chat-form">
+    <input type="text" id="chat-input" placeholder="Escribe tu pregunta…" aria-label="Escribe tu pregunta" autocomplete="off" />
+    <button type="submit" aria-label="Enviar mensaje">${ICONS.send}</button>
+  </form>
+</div>`;
+}
+
+/**
+ * Script de comportamientos del cliente (JavaScript vanilla).
+ * Menú móvil, reveal al hacer scroll, filtro de sectores y asistente de chat.
+ */
+export function behaviors() {
+  return `<script>
+(function () {
+  // ---------- Menú móvil ----------
+  const toggle = document.getElementById('nav-toggle');
+  const links = document.getElementById('nav-links');
+  if (toggle && links) {
+    toggle.addEventListener('click', () => {
+      const open = links.classList.toggle('nav__links--open');
+      toggle.setAttribute('aria-expanded', String(open));
+    });
+    links.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+      links.classList.remove('nav__links--open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }));
+  }
+
+  // ---------- Cierre suave de secciones al hacer scroll (poca altura) ----------
+  // Nota: los acordeones <details> de la FAQ se cierran uno a la vez.
+  document.querySelectorAll('.faq-item summary').forEach(sum => {
+    sum.addEventListener('click', () => {
+      const item = sum.parentElement;
+      const wasOpen = item.open;
+      document.querySelectorAll('.faq-item[open]').forEach(i => { if (i !== item) i.open = false; });
+      item.open = !wasOpen;
+    });
+  });
+
+  // ---------- Scroll reveal (microanimaciones sutiles) ----------
+  const revealEls = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    revealEls.forEach(el => io.observe(el));
+  } else {
+    revealEls.forEach(el => el.classList.add('is-visible'));
+  }
+
+  // ---------- Resaltado de la navegación según la sección visible ----------
+  const navLinks = document.querySelectorAll('.nav__links a[href^="#"]');
+  const navMap = {};
+  navLinks.forEach(a => { navMap[a.getAttribute('href').slice(1)] = a; });
+  const sections = Object.keys(navMap).map(id => document.getElementById(id)).filter(Boolean);
+  if ('IntersectionObserver' in window && sections.length) {
+    const navIO = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const link = navMap[entry.target.id];
+        if (!link) return;
+        if (entry.isIntersecting) link.classList.add('is-active');
+        else link.classList.remove('is-active');
+      });
+    }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+    sections.forEach(s => navIO.observe(s));
+  }
+
+  // ---------- Asistente de chat (rule-based) ----------
+  // CONECTAR IA REAL MÁS ADELANTE: sustituir getBotReply() por una llamada
+  // a una API (por ejemplo POST a una ruta del Worker) que devuelva la
+  // respuesta. El resto del widget no cambia.
+  const fab = document.getElementById('chat-fab');
+  const win = document.getElementById('chat-window');
+  const closeBtn = document.getElementById('chat-close');
+  const body = document.getElementById('chat-body');
+  const form = document.getElementById('chat-form');
+  const input = document.getElementById('chat-input');
+
+  const KNOWLEDGE = [
+    { keywords: ['tecnología', 'tecnologia', 'saber', 'experto', 'programar', 'principiantes'], answer: 'Para nada. No necesitas saber de tecnología para beneficiarte de la IA. Te acompañamos desde cero, con lenguaje simple, y te explicamos cada paso. Ese es justamente nuestro trabajo.' },
+    { keywords: ['colombia', 'fuera', 'internacional', 'país', 'pais', 'extranjero'], answer: 'Sí, atendemos en toda Colombia y también fuera del país. Somos un centro 100% virtual con alcance internacional.' },
+    { keywords: ['internet', 'conexión', 'conexion', 'sin red', 'offline', 'local'], answer: 'Podemos implementar soluciones locales que funcionan sin internet y sin suscripción, ideales si manejas información sensible o tienes conectividad limitada.' },
+    { keywords: ['cuesta', 'precio', 'valor', 'costo', 'gratis', 'gratuita', 'pagar'], answer: 'La primera asesoría es gratuita y sin compromiso. Después, cada plan se arma a la medida de tu necesidad; te presentamos los costos con claridad antes de empezar.' },
+    { keywords: ['horario', 'hora', 'disponible', 'cuándo', 'cuando'], answer: 'Nuestro equipo humano atiende de ${CONFIG.hoursHuman}. La asistencia por IA está disponible las 24 horas, los 7 días de la semana.' },
+    { keywords: ['capacitación', 'capacitacion', 'curso', 'aprender', 'formación', 'formacion', 'entrenar'], answer: 'Tenemos capacitaciones de adopción y alfabetización en IA para quienes parten de cero, y programas especializados por sector (salud, eventos, deportes, banca, arquitectura, restaurantes y más).' },
+    { keywords: ['modelo', 'claude', 'chatgpt', 'copilot', 'deepseek', 'kimi', 'glm', 'qwen', 'inteligencia artificial'], answer: 'Trabajamos con los modelos más conocidos (Claude, ChatGPT, Copilot) y también con opciones menos populares pero muy capaces (DeepSeek, Kimi, GLM, Qwen y otros modelos asiáticos). Elegimos el mejor para cada caso.' },
+    { keywords: ['privacidad', 'seguro', 'datos', 'confidencial', 'privado', 'información'], answer: 'Sí. Si lo necesitas, trabajamos con IA local: tus datos se procesan dentro de tu propia empresa, sin depender de internet ni de terceros.' },
+    { keywords: ['servicio', 'ofrecen', 'hacen', 'asesoría', 'asesoria', 'consulta'], answer: 'Ofrecemos asesoría y consultoría, capacitación, asesoría tecnológica, suscripciones y equipos, soluciones locales y privadas, y automatización de procesos. ¿Quieres que te cuente más de alguna?' },
+    { keywords: ['automati', 'procesos', 'tareas', 'ahorrar', 'eficiencia'], answer: 'Sí, automatizamos procesos y conectamos la IA con las herramientas que tu negocio ya usa, para ahorrar tiempo en tareas repetitivas.' },
+  ];
+
+  function getBotReply(text) {
+    const t = text.toLowerCase();
+    for (const item of KNOWLEDGE) {
+      if (item.keywords.some(k => t.includes(k))) return item.answer;
+    }
+    return 'Buena pregunta. ¿Quieres agendar una asesoría gratuita para hablarlo a detalle? Nuestro equipo humano atiende de ${CONFIG.hoursHuman} y puedes dejar tu mensaje en la sección de contacto.';
+  }
+
+  function addMessage(text, who) {
+    const msg = document.createElement('div');
+    msg.className = 'chat-msg chat-msg--' + who;
+    msg.textContent = text;
+    body.appendChild(msg);
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function openChat() {
+    win.classList.add('is-open');
+    win.setAttribute('aria-hidden', 'false');
+    if (body.children.length === 0) {
+      addMessage('Hola, soy el asistente virtual de Reborntech. Estoy disponible 24/7 para responder tus dudas básicas. Nuestro equipo humano te atiende de ${CONFIG.hoursHuman}. ¿En qué te ayudo?', 'bot');
+    }
+    setTimeout(() => input && input.focus(), 80);
+  }
+
+  function closeChat() {
+    win.classList.remove('is-open');
+    win.setAttribute('aria-hidden', 'true');
+  }
+
+  fab.addEventListener('click', () => {
+    win.classList.contains('is-open') ? closeChat() : openChat();
+  });
+  closeBtn.addEventListener('click', closeChat);
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    addMessage(text, 'user');
+    input.value = '';
+    setTimeout(() => addMessage(getBotReply(text), 'bot'), 350);
+  });
+
+  document.querySelectorAll('[data-quick]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const q = btn.getAttribute('data-quick');
+      if (!win.classList.contains('is-open')) openChat();
+      addMessage(q, 'user');
+      setTimeout(() => addMessage(getBotReply(q), 'bot'), 350);
+    });
+  });
+
+  // ---------- Filtro por sector ----------
+  const chips = document.querySelectorAll('[data-filter]');
+  const cards = document.querySelectorAll('[data-sector]');
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const f = chip.getAttribute('data-filter');
+      chips.forEach(c => c.classList.toggle('is-active', c === chip));
+      cards.forEach(card => {
+        const show = f === 'todos' || card.getAttribute('data-sector') === f;
+        card.style.display = show ? '' : 'none';
+      });
+    });
+  });
+
+  // ---------- Formulario de contacto → WhatsApp + correo ----------
+  const formEl = document.getElementById('contact-form');
+  const successEl = document.getElementById('form-success');
+  if (formEl) {
+    formEl.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const nombre = formEl.nombre.value.trim();
+      const empresa = formEl.empresa.value.trim();
+      const sector = formEl.sector.value.trim();
+      const necesidad = formEl.necesidad.value.trim();
+
+      if (!nombre || !necesidad) {
+        alert('Por favor escribe tu nombre y cuéntanos qué necesitas.');
+        return;
+      }
+
+      const mensaje = [
+        'Hola Reborntech, quiero agendar una asesoría gratuita.',
+        'Nombre: ' + nombre,
+        empresa ? 'Empresa: ' + empresa : '',
+        sector !== 'Otro sector' && sector ? 'Sector: ' + sector : '',
+        '¿Qué necesito?: ' + necesidad,
+      ].filter(Boolean).join('\\n');
+
+      // NÚMERO PLACEHOLDER: ver CONFIG en src/shared/styles.js
+      const waLink = 'https://wa.me/${CONFIG.whatsappNumber}?text=' + encodeURIComponent(mensaje);
+      const mailLink = 'mailto:${CONFIG.email}?subject=' + encodeURIComponent('Asesoría gratuita — Reborntech') + '&body=' + encodeURIComponent(mensaje);
+
+      // Abrimos WhatsApp y también mostramos el enlace por correo.
+      window.open(waLink, '_blank', 'noopener');
+      if (successEl) {
+        successEl.classList.add('is-visible');
+        successEl.innerHTML = '¡Gracias, ' + nombre + '! Abrimos WhatsApp con tu mensaje listo para enviar. ' +
+          'También puedes escribirnos por correo a <a href="' + mailLink + '">${CONFIG.email}</a> o volver a abrir <a href="' + waLink + '" target="_blank" rel="noopener">WhatsApp</a>.';
+      }
+      formEl.reset();
+    });
+  }
+})();
+</script>`;
+}
+
+/** Ensambla la página final con cabeza, header, contenido y chat */
+export function assemblePage(title, description, body) {
+  return head(title, description) + header() + `
+<main id="contenido">${body}</main>` + chatWidget() + behaviors() + `
+</body>
+</html>`;
+}
