@@ -58,12 +58,10 @@ export function header() {
 </header>`;
 }
 
-/** Widget de asistente conversacional (front-end, rule-based) */
+/** Widget de asistente conversacional conectado al proxy del Worker */
 export function chatWidget() {
   return `
-<!-- Widget de chat: respuestas automáticas basadas en preguntas frecuentes.
-     Estructura lista para conectar una IA real más adelante: reemplazar
-     la función responderChat() en layout.js por una llamada a una API. -->
+<!-- Widget de chat conectado al asistente de IA mediante el proxy same-origin. -->
 <button class="chat-fab" id="chat-fab" aria-label="Abrir asistente virtual Reborntech">
   <span class="chat-fab__pulse"></span>
   ${ICONS.chat}
@@ -74,6 +72,7 @@ export function chatWidget() {
     <div>
       <strong>Asistente Reborntech</strong>
       <span>Asistencia por IA · disponible 24/7</span>
+      <span id="chat-status" class="chat-window__status" aria-live="polite" hidden>Escribiendo…</span>
     </div>
     <button class="chat-window__close" id="chat-close" aria-label="Cerrar asistente">×</button>
   </div>
@@ -238,44 +237,90 @@ export function behaviors() {
     sections.forEach(s => navIO.observe(s));
   }
 
-  // ---------- Asistente de chat (rule-based) ----------
-  // CONECTAR IA REAL MÁS ADELANTE: sustituir getBotReply() por una llamada
-  // a una API (por ejemplo POST a una ruta del Worker) que devuelva la
-  // respuesta. El resto del widget no cambia.
+  // ---------- Asistente de chat ----------
   const fab = document.getElementById('chat-fab');
   const win = document.getElementById('chat-window');
   const closeBtn = document.getElementById('chat-close');
   const body = document.getElementById('chat-body');
   const form = document.getElementById('chat-form');
   const input = document.getElementById('chat-input');
+  const status = document.getElementById('chat-status');
+  const MAX_HISTORY = 12;
+  const MAX_INPUT_LENGTH = 1000;
+  const chatHistory = [];
+  let busy = false;
 
-  const KNOWLEDGE = [
-    { keywords: ['tecnología', 'tecnologia', 'saber', 'experto', 'programar', 'principiantes'], answer: 'Para nada. No necesitas saber de tecnología para beneficiarte de la IA. Te acompañamos desde cero, con lenguaje simple, y te explicamos cada paso. Ese es justamente nuestro trabajo.' },
-    { keywords: ['colombia', 'fuera', 'internacional', 'país', 'pais', 'extranjero'], answer: 'Sí, atendemos en toda Colombia y también fuera del país. Somos un centro 100% virtual con alcance internacional.' },
-    { keywords: ['internet', 'conexión', 'conexion', 'sin red', 'offline', 'local'], answer: 'Podemos implementar soluciones locales que funcionan sin internet y sin suscripción, ideales si manejas información sensible o tienes conectividad limitada.' },
-    { keywords: ['cuesta', 'precio', 'valor', 'costo', 'gratis', 'gratuita', 'pagar'], answer: 'La primera asesoría es gratuita y sin compromiso. Después, cada plan se arma a la medida de tu necesidad; te presentamos los costos con claridad antes de empezar.' },
-    { keywords: ['horario', 'hora', 'disponible', 'cuándo', 'cuando'], answer: 'Nuestro equipo humano atiende de ${CONFIG.hoursHuman}. La asistencia por IA está disponible las 24 horas, los 7 días de la semana.' },
-    { keywords: ['capacitación', 'capacitacion', 'curso', 'aprender', 'formación', 'formacion', 'entrenar'], answer: 'Tenemos capacitaciones de adopción y alfabetización en IA para quienes parten de cero, y programas especializados por sector (salud, eventos, deportes, banca, arquitectura, restaurantes y más).' },
-    { keywords: ['modelo', 'claude', 'chatgpt', 'copilot', 'deepseek', 'kimi', 'glm', 'qwen', 'inteligencia artificial'], answer: 'Trabajamos con los modelos más conocidos (Claude, ChatGPT, Copilot) y también con opciones menos populares pero muy capaces (DeepSeek, Kimi, GLM, Qwen y otros modelos asiáticos). Elegimos el mejor para cada caso.' },
-    { keywords: ['privacidad', 'seguro', 'datos', 'confidencial', 'privado', 'información'], answer: 'Sí. Si lo necesitas, trabajamos con IA local: tus datos se procesan dentro de tu propia empresa, sin depender de internet ni de terceros.' },
-    { keywords: ['servicio', 'ofrecen', 'hacen', 'asesoría', 'asesoria', 'consulta'], answer: 'Ofrecemos asesoría y consultoría, capacitación, asesoría tecnológica, suscripciones y equipos, soluciones locales y privadas, y automatización de procesos. ¿Quieres que te cuente más de alguna?' },
-    { keywords: ['automati', 'procesos', 'tareas', 'ahorrar', 'eficiencia'], answer: 'Sí, automatizamos procesos y conectamos la IA con las herramientas que tu negocio ya usa, para ahorrar tiempo en tareas repetitivas.' },
-  ];
-
-  function getBotReply(text) {
-    const t = text.toLowerCase();
-    for (const item of KNOWLEDGE) {
-      if (item.keywords.some(k => t.includes(k))) return item.answer;
-    }
-    return 'Buena pregunta. ¿Quieres agendar una asesoría gratuita para hablarlo a detalle? Nuestro equipo humano atiende de ${CONFIG.hoursHuman} y puedes dejar tu mensaje en la sección de contacto.';
-  }
-
-  function addMessage(text, who) {
+  function addMessage(text, who, record = true) {
     const msg = document.createElement('div');
     msg.className = 'chat-msg chat-msg--' + who;
     msg.textContent = text;
     body.appendChild(msg);
     body.scrollTop = body.scrollHeight;
+    if (record) {
+      chatHistory.push({ role: who === 'user' ? 'user' : 'assistant', content: text });
+      if (chatHistory.length > MAX_HISTORY) chatHistory.splice(0, chatHistory.length - MAX_HISTORY);
+    }
+    return msg;
+  }
+
+  function setBusy(value) {
+    busy = value;
+    input.disabled = value;
+    form.querySelector('button[type="submit"]').disabled = value;
+    document.querySelectorAll('[data-quick]').forEach(btn => { btn.disabled = value; });
+    form.setAttribute('aria-busy', String(value));
+    status.hidden = !value;
+  }
+
+  async function streamReply() {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    const botMessage = addMessage('', 'bot', false);
+    let responseText = '';
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify({ messages: chatHistory.slice(-MAX_HISTORY) }),
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.body) throw new Error('AI service unavailable');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let done = false;
+      while (!done) {
+        const chunk = await reader.read();
+        done = chunk.done;
+        buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: !done });
+        const frames = buffer.split(/\\r?\\n\\r?\\n/);
+        buffer = frames.pop() || '';
+        frames.forEach(frame => {
+          frame.split(/\\r?\\n/).forEach(line => {
+            if (!line.startsWith('data: ')) return;
+            const data = line.slice(6);
+            if (data === '[DONE]') return;
+            try {
+              const parsed = JSON.parse(data);
+              if (typeof parsed.response === 'string') {
+                responseText += parsed.response;
+                botMessage.textContent = responseText;
+                body.scrollTop = body.scrollHeight;
+              }
+            } catch { /* Ignore incomplete or non-JSON SSE frames. */ }
+          });
+        });
+      }
+      if (!responseText) throw new Error('Empty AI response');
+      chatHistory.push({ role: 'assistant', content: responseText });
+      if (chatHistory.length > MAX_HISTORY) chatHistory.splice(0, chatHistory.length - MAX_HISTORY);
+    } catch {
+      botMessage.textContent = 'No pude responder en este momento. Intenta de nuevo en unos segundos o escríbenos por la sección de contacto.';
+    } finally {
+      clearTimeout(timeout);
+      setBusy(false);
+    }
   }
 
   function openChat() {
@@ -297,21 +342,24 @@ export function behaviors() {
   });
   closeBtn.addEventListener('click', closeChat);
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const text = input.value.trim();
-    if (!text) return;
+  async function submitQuestion(text) {
+    if (busy || !text) return;
     addMessage(text, 'user');
     input.value = '';
-    setTimeout(() => addMessage(getBotReply(text), 'bot'), 350);
+    setBusy(true);
+    await streamReply();
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    submitQuestion(input.value.trim().slice(0, MAX_INPUT_LENGTH));
   });
 
   document.querySelectorAll('[data-quick]').forEach(btn => {
     btn.addEventListener('click', () => {
       const q = btn.getAttribute('data-quick');
       if (!win.classList.contains('is-open')) openChat();
-      addMessage(q, 'user');
-      setTimeout(() => addMessage(getBotReply(q), 'bot'), 350);
+      submitQuestion(q);
     });
   });
 

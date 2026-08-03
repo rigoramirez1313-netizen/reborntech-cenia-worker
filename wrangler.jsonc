@@ -3,6 +3,12 @@
   "name": "ceniaco",
   "main": "src/index.js",
   "compatibility_date": "2026-08-01",
+  "services": [
+    {
+      "binding": "LLM_CHAT",
+      "service": "llm-chat-app-template"
+    }
+  ],
   "observability": {
     "enabled": true
   }
