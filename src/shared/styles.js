@@ -183,22 +183,28 @@ h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height:
   border-bottom: 1px solid var(--darkLine);
 }
 .nav { display: flex; align-items: center; gap: 20px; height: 76px; }
-.nav__brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+.nav__brand { display: flex; align-items: center; gap: 12px; text-decoration: none; flex-shrink: 0; }
 .nav__brand img { width: 44px; height: 44px; border-radius: 10px; }
 .nav__brand span { color: var(--white); font-family: var(--font-head); font-weight: 700; font-size: 1.12rem; }
-.nav__links { display: flex; align-items: center; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+.nav__links { display: flex; align-items: center; gap: 4px; margin-left: auto; flex-wrap: nowrap; min-width: 0; }
 .nav__links a:not(.btn) {
   color: rgba(255,255,255,0.85); text-decoration: none; font-weight: 500;
-  font-size: 0.95rem; padding: 8px 12px; border-radius: 8px; transition: color 0.2s;
+  font-size: 0.95rem; padding: 8px 12px; border-radius: 8px; transition: color 0.2s; white-space: nowrap;
 }
 .nav__links a:not(.btn):hover { color: var(--mint); }
 .nav__links a:not(.btn).is-active { color: var(--mint); }
-.nav__cta { margin-left: 8px; }
+.nav__cta { margin-left: 8px; white-space: nowrap; }
 .nav__toggle {
   display: none; margin-left: auto; background: none; border: 0; cursor: pointer;
   width: 40px; height: 40px; border-radius: 8px; align-items: center; justify-content: center;
 }
 .nav__toggle span { display: block; width: 22px; height: 2px; background: var(--white); margin: 4px auto; transition: all 0.3s; }
+@media (min-width: 921px) and (max-width: 1160px) {
+  .nav { gap: 12px; }
+  .nav__links { gap: 0; }
+  .nav__links a:not(.btn) { font-size: 0.8rem; padding: 7px 6px; }
+  .nav__cta { margin-left: 4px; padding: 8px 12px; font-size: 0.78rem; }
+}
 @media (max-width: 920px) {
   .nav__links {
     display: none; position: absolute; top: 76px; left: 0; right: 0; flex-direction: column;
@@ -260,6 +266,9 @@ h1, h2, h3, h4 { font-family: var(--font-head); color: var(--navy); line-height:
 .hero__pillar svg { width: 20px; height: 20px; color: var(--mint); }
 .hero__actions { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 48px; }
 .hero__trust { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.hero__title .word { display: inline-block; }
+.hero__title .char { display: inline-block; will-change: transform, opacity; }
+.hero__title .word-space { display: inline-block; width: .3em; }
 @media (max-width: 900px) { .hero__trust { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 480px) { .hero__trust { grid-template-columns: 1fr; } }
 

@@ -25,6 +25,8 @@ export function head(title, description) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>${css()}</style>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.15/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.15/dist/ScrollTrigger.min.js"></script>
 </head>
 `;
 }
@@ -120,9 +122,20 @@ export function behaviors() {
     });
   });
 
-  // ---------- Scroll reveal (microanimaciones sutiles) ----------
+  // ---------- Animaciones progresivas ----------
   const revealEls = document.querySelectorAll('.reveal');
-  if ('IntersectionObserver' in window) {
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const gsapReady = !reducedMotion && Boolean(window.gsap && window.ScrollTrigger);
+
+  function showReveals() {
+    revealEls.forEach(el => el.classList.add('is-visible'));
+  }
+
+  function fallbackReveal() {
+    if (!('IntersectionObserver' in window)) {
+      showReveals();
+      return;
+    }
     const io = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -132,8 +145,80 @@ export function behaviors() {
       });
     }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
     revealEls.forEach(el => io.observe(el));
+  }
+
+  function splitTitleChars(title) {
+    // Mantener el titular intacto evita alterar sus espacios y su wrapping.
+    return [];
+  }
+
+  if (gsapReady) {
+    window.gsap.registerPlugin(window.ScrollTrigger);
+    const gsap = window.gsap;
+    const hero = document.querySelector('.hero');
+    const heroTitle = hero && hero.querySelector('.hero__title');
+    const titleChars = splitTitleChars(heroTitle) || [];
+    const heroParts = hero ? {
+      eyebrow: hero.querySelector('.hero__eyebrow'),
+      title: heroTitle,
+      sub: hero.querySelector('.hero__sub'),
+      pillars: hero.querySelector('.hero__pillars'),
+      actions: hero.querySelector('.hero__actions'),
+      trust: hero.querySelector('.hero__trust'),
+    } : {};
+
+    if (hero) {
+      gsap.set([heroParts.eyebrow, heroParts.sub, heroParts.pillars, heroParts.actions, heroParts.trust], { autoAlpha: 1, y: 0 });
+      gsap.set([heroParts.eyebrow, heroParts.sub], { autoAlpha: 0, y: 18 });
+      gsap.set(heroParts.title, { autoAlpha: 0, y: 26 });
+      const pillarItems = heroParts.pillars ? heroParts.pillars.querySelectorAll('.hero__pillar') : [];
+      const actionItems = heroParts.actions ? heroParts.actions.querySelectorAll('.btn') : [];
+      const trustItems = heroParts.trust ? heroParts.trust.querySelectorAll('.trust-item') : [];
+      gsap.set([pillarItems, actionItems, trustItems], { autoAlpha: 0, y: 12 });
+      const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+      heroTl.to(heroParts.eyebrow, { autoAlpha: 1, y: 0, duration: 0.55 });
+      heroTl
+        .to(heroParts.title, { autoAlpha: 1, y: 0, duration: 0.8, ease: 'power4.out' }, '-=0.2')
+        .to(heroParts.sub, { autoAlpha: 1, y: 0, duration: 0.55 }, '-=0.35')
+        .to(pillarItems, { autoAlpha: 1, y: 0, duration: 0.45, stagger: 0.08 }, '-=0.3')
+        .to(actionItems, { autoAlpha: 1, y: 0, duration: 0.45, stagger: 0.08 }, '-=0.25')
+        .to(trustItems, { autoAlpha: 1, y: 0, duration: 0.5, stagger: 0.08 }, '-=0.2');
+      gsap.to(hero.querySelectorAll('.hero__blob'), {
+        y: (index) => index ? -22 : 28,
+        ease: 'none',
+        scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: 1.4 },
+      });
+    }
+
+    const grouped = new Set();
+    document.querySelectorAll('.grid-3, .grid-4, .grid-2, .timeline, .faq-list').forEach(group => {
+      const items = group.querySelectorAll(':scope > .reveal');
+      if (!items.length) return;
+      items.forEach(item => grouped.add(item));
+      gsap.fromTo(items, { autoAlpha: 0, y: 24 }, {
+        autoAlpha: 1, y: 0, duration: 0.65, stagger: 0.08, ease: 'power2.out',
+        scrollTrigger: { trigger: group, start: 'top 84%', toggleActions: 'play none none reverse' },
+      });
+    });
+    revealEls.forEach(el => {
+      if (grouped.has(el) || (hero && hero.contains(el))) return;
+      gsap.fromTo(el, { autoAlpha: 0, y: 18 }, {
+        autoAlpha: 1, y: 0, duration: 0.65, ease: 'power2.out',
+        scrollTrigger: { trigger: el, start: 'top 88%', toggleActions: 'play none none reverse' },
+      });
+    });
+    gsap.utils.toArray('.section__eyebrow').forEach(eyebrow => {
+      gsap.fromTo(eyebrow, { y: 8 }, {
+        y: -8, ease: 'none', scrollTrigger: { trigger: eyebrow, start: 'top bottom', end: 'bottom top', scrub: 1.5 },
+      });
+    });
+    gsap.utils.toArray('.card').forEach(card => {
+      gsap.to(card, { y: -5, ease: 'none', scrollTrigger: { trigger: card, start: 'top bottom', end: 'bottom top', scrub: 2 } });
+    });
+  } else if (reducedMotion) {
+    showReveals();
   } else {
-    revealEls.forEach(el => el.classList.add('is-visible'));
+    fallbackReveal();
   }
 
   // ---------- Resaltado de la navegación según la sección visible ----------
