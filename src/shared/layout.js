@@ -64,7 +64,7 @@ export function chatWidget() {
 <!-- Widget de chat conectado al asistente de IA mediante el proxy same-origin. -->
 <button class="chat-fab" id="chat-fab" aria-label="Abrir asistente virtual Reborntech">
   <span class="chat-fab__pulse"></span>
-  ${ICONS.chat}
+  ${ICONS.robot}
 </button>
 <div class="chat-window" id="chat-window" role="dialog" aria-label="Asistente virtual Reborntech" aria-hidden="true">
   <div class="chat-window__head">
